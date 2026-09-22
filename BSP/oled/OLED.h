@@ -2,7 +2,41 @@
 #define __OLED_H
 
 #include <stdint.h>
+#include "main.h"
 #include "OLED_Data.h"
+
+/* HAL hardware-SPI configuration. */
+#ifndef OLED_SPI_HANDLE
+#define OLED_SPI_HANDLE hspi1
+#endif
+
+#ifndef OLED_SPI_TIMEOUT
+#define OLED_SPI_TIMEOUT 100U
+#endif
+
+#ifndef OLED_CS_GPIO_Port
+#define OLED_CS_GPIO_Port GPIOA
+#endif
+
+#ifndef OLED_CS_Pin
+#define OLED_CS_Pin GPIO_PIN_15
+#endif
+
+#ifndef OLED_DC_GPIO_Port
+#define OLED_DC_GPIO_Port GPIOB
+#endif
+
+#ifndef OLED_DC_Pin
+#define OLED_DC_Pin GPIO_PIN_3
+#endif
+
+#ifndef OLED_RES_GPIO_Port
+#define OLED_RES_GPIO_Port GPIOB
+#endif
+
+#ifndef OLED_RES_Pin
+#define OLED_RES_Pin GPIO_PIN_4
+#endif
 
 /*参数宏定义*********************/
 

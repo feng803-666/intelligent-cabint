@@ -26,6 +26,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "OLED.h"
 
 /* USER CODE END Includes */
 
@@ -99,6 +100,10 @@ int main(void)
   MX_TIM2_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
+
+  OLED_Init();
+  OLED_Printf(0, 0, OLED_6X8, "fuck world");
+  OLED_Update();
 
   /* USER CODE END 2 */
 

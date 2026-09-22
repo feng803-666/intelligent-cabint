@@ -44,7 +44,7 @@ void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_4;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_32;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -54,6 +54,15 @@ void MX_SPI1_Init(void)
     Error_Handler();
   }
   /* USER CODE BEGIN SPI1_Init 2 */
+
+  /*
+   * SSD1315 is write-only, but STM32F1 SPI_DIRECTION_1LINE did not produce a
+   * usable waveform on this board. Keep CubeMX in 1-line mode so PA6 remains
+   * assigned to TIM3_CH1, then select the normal MOSI transmit path here.
+   * Received data and the unconfigured MISO input are intentionally ignored.
+   */
+  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
+  CLEAR_BIT(hspi1.Instance->CR1, SPI_CR1_BIDIMODE | SPI_CR1_RXONLY);
 
   /* USER CODE END SPI1_Init 2 */
 

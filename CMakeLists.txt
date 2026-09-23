@@ -47,12 +47,14 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
     BSP/oled/OLED.c
     BSP/oled/OLED_Data.c
+    BSP/led/led.c
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
     ${CMAKE_CURRENT_SOURCE_DIR}/BSP/oled
+    ${CMAKE_CURRENT_SOURCE_DIR}/BSP/led
 )
 
 # Add project symbols (macros)

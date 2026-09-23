@@ -264,5 +264,20 @@ void HAL_UART_MspDeInit(UART_HandleTypeDef* uartHandle)
 
 /* USER CODE BEGIN 1 */
 
+int _write(int file, char *data, int length)
+{
+  HAL_StatusTypeDef status;
+
+  (void)file;
+  if ((data == NULL) || (length <= 0))
+  {
+    return 0;
+  }
+
+  status = HAL_UART_Transmit(&huart1, (uint8_t *)data, (uint16_t)length,
+                             HAL_MAX_DELAY);
+  return (status == HAL_OK) ? length : -1;
+}
+
 /* USER CODE END 1 */
 

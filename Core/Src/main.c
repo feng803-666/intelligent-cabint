@@ -27,6 +27,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "OLED.h"
+#include "led.h"
 
 /* USER CODE END Includes */
 
@@ -98,18 +99,27 @@ int main(void)
   MX_USART3_UART_Init();
   MX_TIM1_Init();
   MX_TIM2_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
 
   OLED_Init();
   OLED_Printf(0, 0, OLED_6X8, "fuck world");
   OLED_Update();
 
+  if (LED_Init() != HAL_OK)
+  {
+    Error_Handler();
+  }
+  LED1_BreathStart(LED1_BREATH_DEFAULT_PERIOD_MS);
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+
   while (1)
   {
+    LED1_Task();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

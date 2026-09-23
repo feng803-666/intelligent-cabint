@@ -59,8 +59,6 @@ void Error_Handler(void);
 /* Private defines -----------------------------------------------------------*/
 #define nRESET_Pin GPIO_PIN_4
 #define nRESET_GPIO_Port GPIOA
-#define LED1_Pin GPIO_PIN_0
-#define LED1_GPIO_Port GPIOB
 #define SWITCH_Pin GPIO_PIN_1
 #define SWITCH_GPIO_Port GPIOB
 #define RELAY_Pin GPIO_PIN_12

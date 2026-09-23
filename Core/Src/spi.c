@@ -55,15 +55,6 @@ void MX_SPI1_Init(void)
   }
   /* USER CODE BEGIN SPI1_Init 2 */
 
-  /*
-   * SSD1315 is write-only, but STM32F1 SPI_DIRECTION_1LINE did not produce a
-   * usable waveform on this board. Keep CubeMX in 1-line mode so PA6 remains
-   * assigned to TIM3_CH1, then select the normal MOSI transmit path here.
-   * Received data and the unconfigured MISO input are intentionally ignored.
-   */
-  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-  CLEAR_BIT(hspi1.Instance->CR1, SPI_CR1_BIDIMODE | SPI_CR1_RXONLY);
-
   /* USER CODE END SPI1_Init 2 */
 
 }

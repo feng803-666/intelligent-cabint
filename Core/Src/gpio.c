@@ -58,6 +58,12 @@ void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, I2C2_SCL_Pin|I2C2_SDA_Pin|OLED_RES_Pin, GPIO_PIN_SET);
 
+  /*Configure GPIO pins : PA0 PA1 */
+  GPIO_InitStruct.Pin = GPIO_PIN_0|GPIO_PIN_1;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
   /*Configure GPIO pins : nRESET_Pin SYN_RES_Pin OLED_CS_Pin */
   GPIO_InitStruct.Pin = nRESET_Pin|SYN_RES_Pin|OLED_CS_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
@@ -85,6 +91,8 @@ void MX_GPIO_Init(void)
   GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(SYN_R_B_GPIO_Port, &GPIO_InitStruct);
+
+  /* 编码器使用 SysTick 周期采样，不启用 EXTI0/EXTI1。 */
 
 }
 

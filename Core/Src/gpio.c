@@ -92,8 +92,6 @@ void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   HAL_GPIO_Init(SYN_R_B_GPIO_Port, &GPIO_InitStruct);
 
-  /* 编码器使用 SysTick 周期采样，不启用 EXTI0/EXTI1。 */
-
 }
 
 /* USER CODE BEGIN 2 */

@@ -50,6 +50,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     BSP/led/led.c
     BSP/encoder/encoder.c
     BSP/interrupt/interrupt.c
+    BSP/sht30/sht30.c
+    BSP/sht30/sht30_port.c
 )
 
 # Add include paths
@@ -58,7 +60,8 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/BSP/oled
     ${CMAKE_CURRENT_SOURCE_DIR}/BSP/led
     ${CMAKE_CURRENT_SOURCE_DIR}/BSP/encoder
-    ${CMAKE_CURRENT_SOURCE_DIR}/BSP/interrupt    
+    ${CMAKE_CURRENT_SOURCE_DIR}/BSP/interrupt
+    ${CMAKE_CURRENT_SOURCE_DIR}/BSP/sht30
 )
 
 # Add project symbols (macros)

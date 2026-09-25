@@ -23,6 +23,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "interrupt.h"
+#include "syn8089_port.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -200,5 +201,10 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /* USER CODE BEGIN 1 */
+/* USART3 由 SYN8089 驱动独占，缓存回传，供主循环处理。 */
+void USART3_IRQHandler(void)
+{
+  SYN8089_Port_IRQHandler();
+}
 
 /* USER CODE END 1 */

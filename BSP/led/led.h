@@ -8,7 +8,7 @@ extern "C" {
 #include "main.h"
 
 /* LED1 呼吸周期默认值，单位：毫秒。可按需要修改。 */
-#define LED1_BREATH_DEFAULT_PERIOD_MS 2000U
+#define LED1_BREATH_DEFAULT_PERIOD_MS 5000U
 
 /* LED2 GPIO 配置：低电平点亮。可根据实际硬件连接修改。 */
 #define LED2_GPIO_Port GPIOA

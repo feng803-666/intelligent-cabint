@@ -20,6 +20,7 @@
 #include "main.h"
 #include "i2c.h"
 #include "spi.h"
+#include "syn8089.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
@@ -101,6 +102,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   Encoder_Init();
   OLED_Init();
+  SYN8089_Init();
 
   if (LED_Init() != HAL_OK)
   {
@@ -112,7 +114,7 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-
+  SYN8089_SpeakUTF8("[x1]sound901您好，欢迎使用。");
   while (1)
   {
     LED1_Task();

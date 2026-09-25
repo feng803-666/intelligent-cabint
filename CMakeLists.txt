@@ -54,6 +54,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     BSP/sht30/sht30_port.c
     BSP/at24c02c/at24c02c.c
     BSP/at24c02c/at24c02c_port.c
+    BSP/syn8089/syn8089.c
+    BSP/syn8089/syn8089_port.c
 )
 
 # Add include paths
@@ -65,6 +67,12 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/BSP/interrupt
     ${CMAKE_CURRENT_SOURCE_DIR}/BSP/sht30
     ${CMAKE_CURRENT_SOURCE_DIR}/BSP/at24c02c
+    ${CMAKE_CURRENT_SOURCE_DIR}/BSP/syn8089
+)
+
+# 源文件和字符串字面量统一使用 UTF-8，中文文本直接交给语音模块。
+target_compile_options(${CMAKE_PROJECT_NAME} PRIVATE
+    $<$<COMPILE_LANGUAGE:C>:-finput-charset=UTF-8;-fexec-charset=UTF-8>
 )
 
 # Add project symbols (macros)

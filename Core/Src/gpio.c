@@ -77,13 +77,18 @@ void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(SWITCH_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : RELAY_Pin I2C2_SCL_Pin I2C2_SDA_Pin OLED_DC_Pin
-                           OLED_RES_Pin */
-  GPIO_InitStruct.Pin = RELAY_Pin|I2C2_SCL_Pin|I2C2_SDA_Pin|OLED_DC_Pin
-                          |OLED_RES_Pin;
+  /*Configure GPIO pins : RELAY_Pin OLED_DC_Pin OLED_RES_Pin */
+  GPIO_InitStruct.Pin = RELAY_Pin|OLED_DC_Pin|OLED_RES_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : I2C2_SCL_Pin I2C2_SDA_Pin */
+  GPIO_InitStruct.Pin = I2C2_SCL_Pin|I2C2_SDA_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_OD;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
   /*Configure GPIO pin : SYN_R_B_Pin */

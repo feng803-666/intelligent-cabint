@@ -52,6 +52,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     BSP/interrupt/interrupt.c
     BSP/sht30/sht30.c
     BSP/sht30/sht30_port.c
+    BSP/at24c02c/at24c02c.c
+    BSP/at24c02c/at24c02c_port.c
 )
 
 # Add include paths
@@ -62,6 +64,7 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/BSP/encoder
     ${CMAKE_CURRENT_SOURCE_DIR}/BSP/interrupt
     ${CMAKE_CURRENT_SOURCE_DIR}/BSP/sht30
+    ${CMAKE_CURRENT_SOURCE_DIR}/BSP/at24c02c
 )
 
 # Add project symbols (macros)

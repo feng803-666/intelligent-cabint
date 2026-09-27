@@ -37,6 +37,8 @@ add_executable(${CMAKE_PROJECT_NAME})
 # Add STM32CubeMX generated sources
 add_subdirectory(cmake/stm32cubemx)
 
+include(BSP/esp-12f/credentials.cmake)
+
 # Link directories setup
 target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined library search paths
@@ -45,6 +47,7 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
+    APP/esp-12f/esp-12f_app.c
     BSP/oled/OLED.c
     BSP/oled/OLED_Data.c
     BSP/led/led.c
@@ -56,11 +59,15 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     BSP/at24c02c/at24c02c_port.c
     BSP/syn8089/syn8089.c
     BSP/syn8089/syn8089_port.c
+    BSP/esp-12f/esp12f.c
+    BSP/esp-12f/esp12f_port.c
+    BSP/esp-12f/onenet.c
 )
 
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
+    ${CMAKE_CURRENT_SOURCE_DIR}/APP/esp-12f
     ${CMAKE_CURRENT_SOURCE_DIR}/BSP/oled
     ${CMAKE_CURRENT_SOURCE_DIR}/BSP/led
     ${CMAKE_CURRENT_SOURCE_DIR}/BSP/encoder
@@ -68,6 +75,8 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/BSP/sht30
     ${CMAKE_CURRENT_SOURCE_DIR}/BSP/at24c02c
     ${CMAKE_CURRENT_SOURCE_DIR}/BSP/syn8089
+    ${CMAKE_CURRENT_SOURCE_DIR}/BSP/esp-12f
+    ${CMAKE_CURRENT_BINARY_DIR}/generated
 )
 
 # 源文件和字符串字面量统一使用 UTF-8，中文文本直接交给语音模块。

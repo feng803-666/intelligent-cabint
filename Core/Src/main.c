@@ -20,7 +20,6 @@
 #include "main.h"
 #include "i2c.h"
 #include "spi.h"
-#include "syn8089.h"
 #include "tim.h"
 #include "usart.h"
 #include "gpio.h"
@@ -30,7 +29,8 @@
 #include "OLED.h"
 #include "led.h"
 #include "encoder.h"
-
+#include "syn8089.h"
+#include "esp-12f_app.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -39,7 +39,6 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -60,7 +59,6 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
 /* USER CODE END 0 */
 
 /**
@@ -109,6 +107,7 @@ int main(void)
     Error_Handler();
   }
   LED1_BreathStart(LED1_BREATH_DEFAULT_PERIOD_MS);
+  ESP12F_App_Init();
 
   /* USER CODE END 2 */
 
@@ -118,6 +117,7 @@ int main(void)
   while (1)
   {
     LED1_Task();
+    ESP12F_App_Task();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

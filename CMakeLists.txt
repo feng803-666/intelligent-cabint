@@ -62,6 +62,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     BSP/esp-12f/esp12f.c
     BSP/esp-12f/esp12f_port.c
     BSP/esp-12f/onenet.c
+    BSP/duoji/duoji.c
+    BSP/relay/relay.c
 )
 
 # Add include paths
@@ -77,6 +79,8 @@ target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/BSP/syn8089
     ${CMAKE_CURRENT_SOURCE_DIR}/BSP/esp-12f
     ${CMAKE_CURRENT_BINARY_DIR}/generated
+    ${CMAKE_CURRENT_SOURCE_DIR}/BSP/duoji
+    ${CMAKE_CURRENT_SOURCE_DIR}/BSP/relay
 )
 
 # 源文件和字符串字面量统一使用 UTF-8，中文文本直接交给语音模块。

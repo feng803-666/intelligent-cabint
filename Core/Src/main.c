@@ -30,6 +30,7 @@
 #include "led.h"
 #include "encoder.h"
 #include "syn8089.h"
+#include "relay.h"
 #include "esp-12f_app.h"
 /* USER CODE END Includes */
 
@@ -98,6 +99,8 @@ int main(void)
   MX_TIM1_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
+  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+  Relay_Off();
   Encoder_Init();
   OLED_Init();
   SYN8089_Init();

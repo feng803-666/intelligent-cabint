@@ -18,6 +18,7 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "duoji.h"
 #include "i2c.h"
 #include "spi.h"
 #include "tim.h"
@@ -30,7 +31,8 @@
 #include "led.h"
 #include "encoder.h"
 #include "syn8089.h"
-#include "relay.h"
+#include "duoji_app.h"
+#include "relay_app.h"
 #include "esp-12f_app.h"
 /* USER CODE END Includes */
 
@@ -99,23 +101,21 @@ int main(void)
   MX_TIM1_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
-  HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
-  Relay_Off();
   Encoder_Init();
   OLED_Init();
   SYN8089_Init();
-
+  ESP12F_App_Init();
   if (LED_Init() != HAL_OK)
   {
     Error_Handler();
   }
   LED1_BreathStart(LED1_BREATH_DEFAULT_PERIOD_MS);
-  ESP12F_App_Init();
-
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
+  duoji_state = Duoji_Off();
+  relay_state = Relay_Off();
   SYN8089_SpeakUTF8("[x1]sound901您好，欢迎使用。");
   while (1)
   {

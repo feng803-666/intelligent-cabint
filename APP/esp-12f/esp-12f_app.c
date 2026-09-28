@@ -5,6 +5,8 @@
 #include "sht30.h"
 #include "onenet.h"
 #include "esp12f_port.h"
+#include "duoji_app.h"
+#include "relay_app.h"
 #include <stdio.h>
 
 #define TELEMETRY_PERIOD_MS 5000U
@@ -12,15 +14,27 @@
 
 static uint8_t network_online, sensor_ready;
 static uint32_t network_attempt_at, sample_at;
+static uint8_t last_lock, last_relay, switches_dirty;
 /* DAPLink 调试观察项：无需串口也可确认真实采样和云端成功次数。 */
 static volatile SHT30_Data telemetry_sample;
 static volatile uint32_t telemetry_upload_count;
 static volatile ESP12F_Status telemetry_last_status;
 
+static void ControlSwitches(uint8_t mask, uint8_t lock, uint8_t relay)
+{
+  if (mask & ONENET_SET_LOCK) duoji_state = lock ? Duoji_On() : Duoji_Off();
+  if (mask & ONENET_SET_RELAY) relay_state = relay ? Relay_On() : Relay_Off();
+  switches_dirty = 1U;
+  printf("[OneNET] set lock=%u relay=%u\r\n", (unsigned)duoji_state, (unsigned)relay_state);
+}
+
 void ESP12F_App_Init(void)
 {
   network_online = 0U;
   sample_at = 0U;
+  last_lock = last_relay = 0xFFU;
+  switches_dirty = 1U;
+  OneNET_SetControlHandler(ControlSwitches);
   telemetry_sample = (SHT30_Data){0};
   telemetry_upload_count = 0U;
   telemetry_last_status = ESP12F_ERROR_NOT_INIT;
@@ -76,7 +90,11 @@ void ESP12F_App_Task(void)
     OLED_Update();
     return;
   }
-  if ((uint32_t)(HAL_GetTick() - sample_at) < TELEMETRY_PERIOD_MS) return;
+  if ((uint32_t)(HAL_GetTick() - sample_at) < TELEMETRY_PERIOD_MS)
+  {
+    if (!switches_dirty && last_lock == duoji_state && last_relay == relay_state) return;
+    goto report_switches;
+  }
   sample_at = HAL_GetTick();
   sensor_status = sensor_ready ? SHT30_OK : SHT30_Init();
   if (sensor_status == SHT30_OK) sensor_status = SHT30_Read(&data);
@@ -87,7 +105,7 @@ void ESP12F_App_Task(void)
     OLED_ClearArea(0, 16, 128, 48);
     OLED_Printf(0, 16, OLED_6X8, "SHT30 error: %u", (unsigned)sensor_status);
     OLED_Update();
-    return;
+    goto report_switches;
   }
 
   /* 不启用 newlib 的浮点 printf，避免占用额外 Flash。 */
@@ -95,18 +113,33 @@ void ESP12F_App_Task(void)
   int32_t t = (int32_t)(data.temperature_c * 100.0f + (data.temperature_c < 0 ? -0.5f : 0.5f));
   uint32_t abs_t = (uint32_t)(t < 0 ? -t : t);
   uint32_t h = (uint32_t)(data.humidity_rh * 100.0f + 0.5f);
+  printf("[SHT30] temp=%s%lu.%02lu humi=%lu.%02lu\r\n",
+         t < 0 ? "-" : "", (unsigned long)(abs_t / 100U), (unsigned long)(abs_t % 100U),
+         (unsigned long)(h / 100U), (unsigned long)(h % 100U));
   OLED_Clear();
   OLED_ShowString(0, 0, "Net: online", OLED_6X8);
   OLED_Printf(0, 16, OLED_6X8, "T: %s%lu.%02lu C", t < 0 ? "-" : "",
               (unsigned long)(abs_t / 100U), (unsigned long)(abs_t % 100U));
   OLED_Printf(0, 32, OLED_6X8, "H: %lu.%02lu %%", (unsigned long)(h / 100U), (unsigned long)(h % 100U));
   OLED_Update();
-  status = OneNET_Report(data.temperature_c, data.humidity_rh);
+  /* 保存本次上报快照；等待应答时的新下发留到下一次 Task 补报。 */
+  last_lock = duoji_state;
+  last_relay = relay_state;
+  switches_dirty = 0U;
+  status = OneNET_Report(data.temperature_c, data.humidity_rh, last_lock, last_relay);
+  goto report_done;
+
+report_switches:
+  last_lock = duoji_state;
+  last_relay = relay_state;
+  switches_dirty = 0U;
+  status = OneNET_ReportSwitches(last_lock, last_relay);
+
+report_done:
   telemetry_last_status = status;
   if (status == ESP12F_OK) ++telemetry_upload_count;
-  printf("[OneNET] temp=%s%lu.%02lu humi=%lu.%02lu result=%s code=%u\r\n",
-         t < 0 ? "-" : "", (unsigned long)(abs_t / 100U), (unsigned long)(abs_t % 100U),
-         (unsigned long)(h / 100U), (unsigned long)(h % 100U),
+  printf("[OneNET] lock=%u relay=%u result=%s code=%u\r\n",
+         (unsigned)last_lock, (unsigned)last_relay,
          ESP12F_StatusString(status), (unsigned)OneNET_LastReplyCode());
   OLED_Printf(0, 48, OLED_6X8, "%s %u", ESP12F_StatusString(status), (unsigned)OneNET_LastReplyCode());
   OLED_Update();

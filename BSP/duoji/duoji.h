@@ -2,10 +2,11 @@
 #define DUOJI_H
 
 #include <main.h>
+#include <stdint.h>
 #include <tim.h>
 
-void Duoji_Off(void);
-void Duoji_On(void);
+uint8_t Duoji_Off(void);
+uint8_t Duoji_On(void);
 
 
 #endif

@@ -17,8 +17,12 @@ static unsigned reply_mode;
 static uint8_t wifi_reject;
 static const char *at_error, *at_silent;
 static char last_payload[800];
+static char last_set_reply[160];
+static unsigned subscriptions, set_replies, control_calls;
+static uint8_t lock_state, relay_state, inject_control;
 
 #define TEST_TOPIC "$sys/" ONENET_PRODUCT_ID "/" ONENET_DEVICE_NAME "/thing/property/post"
+#define TEST_SET_TOPIC "$sys/" ONENET_PRODUCT_ID "/" ONENET_DEVICE_NAME "/thing/property/set"
 enum { REPLY_OK, REPLY_REJECT, REPLY_WRONG_ID, REPLY_MISSING, REPLY_NESTED_ONLY,
        REPLY_DUPLICATE, REPLY_REORDERED, REPLY_WRONG_TOPIC, REPLY_TRAILING,
        REPLY_ESCAPED, REPLY_EMBEDDED_NUL };
@@ -117,6 +121,7 @@ ESP12F_Status ESP12F_Port_Init(void)
     head = tail = 0U;
     uart_fault = 1U; /* ESP8266 ROM startup at 74880 baud: expected framing error. */
     wire_length = 0U;
+    subscriptions = 0U;
     return ESP12F_OK;
 }
 
@@ -177,7 +182,7 @@ ESP12F_Status ESP12F_Port_Transmit(const uint8_t *data, uint16_t size)
                 assert(remaining >= 3U);
                 uint8_t ack[] = {p[0], p[1], suback_reject ? 0x80U : 0U};
                 if (suback_bad_id) ++ack[1];
-                p = ReadString(p + 2U, end, TEST_TOPIC "/reply");
+                p = ReadString(p + 2U, end, subscriptions++ == 0U ? TEST_TOPIC "/reply" : TEST_SET_TOPIC);
                 assert(end - p == 1 && *p == 0U);
                 Incoming(0x90U, ack, sizeof(ack));
                 break;
@@ -190,15 +195,28 @@ ESP12F_Status ESP12F_Port_Transmit(const uint8_t *data, uint16_t size)
                 assert(topic_size + 2U <= remaining);
                 uint8_t onenet_topic = topic_size == strlen(TEST_TOPIC) &&
                     memcmp(p + 2U, TEST_TOPIC, topic_size) == 0;
+                uint8_t set_topic = topic_size == strlen(TEST_SET_TOPIC "_reply") &&
+                    memcmp(p + 2U, TEST_SET_TOPIC "_reply", topic_size) == 0;
                 p += 2U + topic_size;
                 size_t payload_size = (size_t)(end - p);
                 assert(payload_size < sizeof(last_payload));
                 memcpy(last_payload, p, payload_size);
                 last_payload[payload_size] = '\0';
+                if (set_topic)
+                {
+                    assert(payload_size < sizeof(last_set_reply));
+                    strcpy(last_set_reply, last_payload);
+                    ++set_replies;
+                }
                 if (onenet_topic)
                 {
                     char id[11];
                     assert(sscanf(last_payload, "{\"id\":\"%10[0-9]", id) == 1);
+                    if (inject_control)
+                    {
+                        inject_control = 0U;
+                        CloudReply(TEST_SET_TOPIC, "{\"id\":\"77\",\"params\":{\"lock\":1,\"relay\":0}}");
+                    }
                     ReplyToPublish(id);
                 }
                 break;
@@ -255,26 +273,120 @@ static ESP12F_Status Pump(unsigned milliseconds)
     return status;
 }
 
+static void ControlSwitches(uint8_t mask, uint8_t lock, uint8_t relay)
+{
+    ++control_calls;
+    if (mask & ONENET_SET_LOCK) lock_state = lock;
+    if (mask & ONENET_SET_RELAY) relay_state = relay;
+}
+
+static void TestControl(void)
+{
+    assert(subscriptions == 2U);
+    OneNET_SetControlHandler(ControlSwitches);
+    CloudReply(TEST_SET_TOPIC, "{\"id\":\"1234567890123\",\"version\":\"1.0\",\"params\":{\"lock\":1,\"relay\":true}}");
+    assert(Pump(300) == ESP12F_OK);
+    assert(control_calls == 1U && lock_state == 1U && relay_state == 1U);
+    assert(strstr(last_set_reply, "\"id\":\"1234567890123\",\"code\":200") != NULL);
+    CloudReply(TEST_SET_TOPIC, "{\"params\":{\"lock\":false},\"id\":\"2\"}");
+    assert(Pump(300) == ESP12F_OK && lock_state == 0U && relay_state == 1U);
+    CloudReply(TEST_SET_TOPIC, "{\"id\":\"3\",\"params\":{\"relay\":0}}");
+    assert(Pump(300) == ESP12F_OK && relay_state == 0U);
+    unsigned calls = control_calls, replies = set_replies;
+    const char *invalid[] = {
+        "{\"lock\":1,\"relay\":2}", "{\"lock\":1,\"lock\":0}",
+        "{\"lock\":\"1\"}", "{\"relay\":null}", "{\"lock\":-1}",
+        "{\"lock\":1.0}", "{\"lock\":{\"value\":1}}", "{}", "[]",
+        "{\"unknown\":1}", "{\"lock\":1,\"unknown\":0}"
+    };
+    for (unsigned i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i)
+    {
+        char json[200];
+        snprintf(json, sizeof(json), "{\"id\":\"4\",\"params\":%s}", invalid[i]);
+        CloudReply(TEST_SET_TOPIC, json);
+        assert(Pump(300) == ESP12F_OK && control_calls == calls);
+        assert(set_replies == ++replies && strstr(last_set_reply, "\"code\":400") != NULL);
+        assert(lock_state == 0U && relay_state == 0U);
+    }
+    CloudReply(TEST_SET_TOPIC, "{\"id\":\"5\",\"params\":{\"lock\":1},\"params\":{\"relay\":1}}");
+    assert(Pump(300) == ESP12F_OK && control_calls == calls);
+    assert(strstr(last_set_reply, "\"code\":400") != NULL);
+    replies = set_replies;
+    const char *malformed[] = {
+        "{\"id\":\"6\",\"params\":{\"lock\":1}}garbage",
+        "{\"id\":\"6\",\"params\":{\"lock\":1,}}",
+        "{\"id\":\"6\",\"params\":{\"lock\":1}",
+        "{\"params\":{\"lock\":1}}",
+        "{\"id\":\"12345678901234\",\"params\":{\"lock\":1}}",
+        "{\"id\":\"6\",\"id\":\"7\",\"params\":{\"lock\":1}}"
+    };
+    for (unsigned i = 0; i < sizeof(malformed) / sizeof(malformed[0]); ++i)
+    {
+        CloudReply(TEST_SET_TOPIC, malformed[i]);
+        assert(Pump(300) == ESP12F_OK && control_calls == calls && set_replies == replies);
+    }
+    CloudReply("wrong/topic", "{\"id\":\"6\",\"params\":{\"lock\":1}}");
+    assert(Pump(300) == ESP12F_OK && control_calls == calls);
+    OneNET_SetControlHandler(NULL);
+    CloudReply(TEST_SET_TOPIC, "{\"id\":\"6\",\"params\":{\"lock\":1}}");
+    assert(Pump(300) == ESP12F_OK && control_calls == calls);
+    assert(strstr(last_set_reply, "\"code\":500") != NULL);
+    OneNET_SetControlHandler(ControlSwitches);
+
+    /* 下发插入上报发送等待期间，不能破坏当前 MQTT 报文和应答 ID。 */
+    inject_control = 1U;
+    assert(OneNET_Report(25.0f, 50.0f, 0U, 1U) == ESP12F_OK);
+    assert(Pump(300) == ESP12F_OK && control_calls == calls + 1U);
+    assert(lock_state == 1U && relay_state == 0U);
+    assert(strstr(last_set_reply, "\"id\":\"77\",\"code\":200") != NULL);
+    assert(OneNET_ReportSwitches(lock_state, relay_state) == ESP12F_OK);
+    assert(strstr(last_payload, "\"lock\":{\"value\":true},\"relay\":{\"value\":false}") != NULL);
+    assert(strstr(last_payload, "temp") == NULL);
+    assert(OneNET_ReportSwitches(2U, 0U) == ESP12F_ERROR_PARAM);
+    assert(OneNET_Report(25, 50, 0U, 2U) == ESP12F_ERROR_PARAM);
+
+    /* 连续消息必须按顺序应答，发送应答时收到的新消息不能覆盖旧 ID。 */
+    calls = control_calls;
+    replies = set_replies;
+    CloudReply(TEST_SET_TOPIC, "{\"id\":\"81\",\"params\":{\"lock\":0}}");
+    CloudReply(TEST_SET_TOPIC, "{\"id\":\"82\",\"params\":{\"relay\":1}}");
+    CloudReply(TEST_SET_TOPIC, "{\"id\":\"83\",\"params\":{\"lock\":1}}");
+    assert(Pump(500) == ESP12F_OK);
+    assert(control_calls == calls + 3U && set_replies == replies + 3U);
+    assert(lock_state == 1U && relay_state == 1U);
+    assert(strstr(last_set_reply, "\"id\":\"83\",\"code\":200") != NULL);
+
+    /* 即使上报应答丢失，等待期间仍需执行下发并单独应答。 */
+    reply_mode = REPLY_MISSING;
+    inject_control = 1U;
+    assert(OneNET_Report(25, 50, 1U, 1U) == ESP12F_ERROR_TIMEOUT);
+    assert(control_calls == calls + 4U && lock_state == 1U && relay_state == 0U);
+    assert(strstr(last_set_reply, "\"id\":\"77\",\"code\":200") != NULL);
+    assert(OneNET_LastReplyCode() == 0U);
+    reply_mode = REPLY_OK;
+}
+
 int main(void)
 {
     assert(ESP12F_Poll() == ESP12F_ERROR_NOT_INIT);
-    assert(OneNET_Report(25.0f, 50.0f) == ESP12F_ERROR_DISCONNECTED);
+    assert(OneNET_Report(25.0f, 50.0f, 0U, 1U) == ESP12F_ERROR_DISCONNECTED);
     assert(OneNET_Connect() == ESP12F_OK);
     assert(strcmp(OneNET_Stage(), "ONLINE") == 0);
-    assert(OneNET_Report(25.125f, 56.375f) == ESP12F_OK);
+    assert(OneNET_Report(25.125f, 56.375f, 0U, 1U) == ESP12F_OK);
     assert(strstr(last_payload, "\"temp\":{\"value\":25.13}") != NULL);
     assert(strstr(last_payload, "\"humi\":{\"value\":56.38}") != NULL);
+    assert(strstr(last_payload, "\"lock\":{\"value\":false},\"relay\":{\"value\":true}") != NULL);
     assert(OneNET_LastReplyCode() == 200U);
-    assert(OneNET_Report(-0.01f, 0.0f) == ESP12F_OK);
+    assert(OneNET_Report(-0.01f, 0.0f, 0U, 1U) == ESP12F_OK);
     assert(strstr(last_payload, "\"value\":-0.01") != NULL);
-    assert(OneNET_Report(-20.0f, 100.0f) == ESP12F_OK);
+    assert(OneNET_Report(-20.0f, 100.0f, 0U, 1U) == ESP12F_OK);
     unsigned before = transmissions;
-    assert(OneNET_Report(NAN, 10.0f) == ESP12F_ERROR_PARAM);
-    assert(OneNET_Report(10.0f, INFINITY) == ESP12F_ERROR_PARAM);
-    assert(OneNET_Report(-20.01f, 10.0f) == ESP12F_ERROR_PARAM);
-    assert(OneNET_Report(100.01f, 10.0f) == ESP12F_ERROR_PARAM);
-    assert(OneNET_Report(10.0f, -0.01f) == ESP12F_ERROR_PARAM);
-    assert(OneNET_Report(10.0f, 100.01f) == ESP12F_ERROR_PARAM);
+    assert(OneNET_Report(NAN, 10.0f, 0U, 1U) == ESP12F_ERROR_PARAM);
+    assert(OneNET_Report(10.0f, INFINITY, 0U, 1U) == ESP12F_ERROR_PARAM);
+    assert(OneNET_Report(-20.01f, 10.0f, 0U, 1U) == ESP12F_ERROR_PARAM);
+    assert(OneNET_Report(100.01f, 10.0f, 0U, 1U) == ESP12F_ERROR_PARAM);
+    assert(OneNET_Report(10.0f, -0.01f, 0U, 1U) == ESP12F_ERROR_PARAM);
+    assert(OneNET_Report(10.0f, 100.01f, 0U, 1U) == ESP12F_ERROR_PARAM);
     assert(ESP12F_MQTTPublish("test/#", "x", 1) == ESP12F_ERROR_PARAM);
     assert(ESP12F_MQTTPublish("test", NULL, 1) == ESP12F_ERROR_PARAM);
     char oversized[800]; memset(oversized, 'x', sizeof(oversized)); oversized[799] = 0;
@@ -283,22 +395,22 @@ int main(void)
     assert(OneNET_LastReplyCode() == 0U);
 
     reply_mode = REPLY_REJECT;
-    assert(OneNET_Report(1,2) == ESP12F_ERROR_CLOUD_REJECTED && OneNET_LastReplyCode() == 400U);
+    assert(OneNET_Report(1,2, 0U, 1U) == ESP12F_ERROR_CLOUD_REJECTED && OneNET_LastReplyCode() == 400U);
     const unsigned ignored[] = {REPLY_WRONG_ID, REPLY_MISSING, REPLY_NESTED_ONLY,
         REPLY_DUPLICATE, REPLY_WRONG_TOPIC, REPLY_TRAILING, REPLY_EMBEDDED_NUL};
     for (unsigned i = 0U; i < sizeof(ignored)/sizeof(ignored[0]); ++i)
     {
         reply_mode = ignored[i];
-        assert(OneNET_Report(1,2) == ESP12F_ERROR_TIMEOUT && OneNET_LastReplyCode() == 0U);
+        assert(OneNET_Report(1,2, 0U, 1U) == ESP12F_ERROR_TIMEOUT && OneNET_LastReplyCode() == 0U);
         assert(ESP12F_IsConnected());
     }
     reply_mode = REPLY_REORDERED;
-    assert(OneNET_Report(1,2) == ESP12F_OK);
+    assert(OneNET_Report(1,2, 0U, 1U) == ESP12F_OK);
     /* A stale response from an earlier message cannot acknowledge the next one. */
     CloudReply(TEST_TOPIC "/reply", "{\"id\":\"1\",\"code\":400}");
-    assert(OneNET_Report(1,2) == ESP12F_OK);
+    assert(OneNET_Report(1,2, 0U, 1U) == ESP12F_OK);
     reply_mode = REPLY_ESCAPED;
-    assert(OneNET_Report(1,2) == ESP12F_OK && ESP12F_IsConnected());
+    assert(OneNET_Report(1,2, 0U, 1U) == ESP12F_OK && ESP12F_IsConnected());
     reply_mode = REPLY_OK;
 
     unsigned ping_before = pings;
@@ -344,11 +456,11 @@ int main(void)
     at_silent = NULL;
     tick = UINT32_MAX - 1700U;
     assert(OneNET_Connect() == ESP12F_OK);
-    assert(OneNET_Report(1,2) == ESP12F_OK);
+    assert(OneNET_Report(1,2, 0U, 1U) == ESP12F_OK);
 
     /* SEND OK missing must not be mistaken for confirmed transport success. */
     no_send_ok = 1U;
-    assert(OneNET_Report(1,2) == ESP12F_ERROR_TIMEOUT);
+    assert(OneNET_Report(1,2, 0U, 1U) == ESP12F_ERROR_TIMEOUT);
     no_send_ok = 0U;
     assert(OneNET_Connect() == ESP12F_OK);
     const uint8_t too_large[] = {0x30, 0xFF, 0x7F};
@@ -363,7 +475,8 @@ int main(void)
     const uint8_t combined[] = {0xD0,0,0x30,5,0,1,'x',0,'z',0xD0,0};
     IPD(combined, sizeof(combined));
     assert(Pump(100) == ESP12F_OK);
-    assert(OneNET_Report(1,2) == ESP12F_OK);
+    assert(OneNET_Report(1,2, 0U, 1U) == ESP12F_OK);
+    TestControl();
     printf("ESP12F/OneNET tests passed (%u publications, %u heartbeats).\n", publications, pings);
     return 0;
 }

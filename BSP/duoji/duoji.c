@@ -1,11 +1,18 @@
 #include "duoji.h"
+#include <stdint.h>
 
-void Duoji_Off(void)
+uint8_t Duoji_Off(void)
 {
-    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 1500);  
+    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 1500);
+    
+    return 0;  
 }
 
-void Duoji_On(void)
+uint8_t Duoji_On(void)
 {
-    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 1000);  
+    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+    __HAL_TIM_SET_COMPARE(&htim1, TIM_CHANNEL_1, 1000);
+    
+    return 1;
 }

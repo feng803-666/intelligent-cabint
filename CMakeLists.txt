@@ -47,6 +47,8 @@ target_link_directories(${CMAKE_PROJECT_NAME} PRIVATE
 # Add sources to executable
 target_sources(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user sources here
+    APP/relay/relay_app.c
+    APP/duoji/duoji_app.c
     APP/esp-12f/esp-12f_app.c
     BSP/oled/OLED.c
     BSP/oled/OLED_Data.c
@@ -69,6 +71,8 @@ target_sources(${CMAKE_PROJECT_NAME} PRIVATE
 # Add include paths
 target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
     # Add user defined include paths
+    ${CMAKE_CURRENT_SOURCE_DIR}/APP/relay
+    ${CMAKE_CURRENT_SOURCE_DIR}/APP/duoji  
     ${CMAKE_CURRENT_SOURCE_DIR}/APP/esp-12f
     ${CMAKE_CURRENT_SOURCE_DIR}/BSP/oled
     ${CMAKE_CURRENT_SOURCE_DIR}/BSP/led

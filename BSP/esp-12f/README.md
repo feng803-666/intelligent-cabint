@@ -138,17 +138,18 @@ while (1)
 1. 保留编码器、OLED、SYN8089 欢迎语和呼吸灯，初始化 SHT30。
 2. 连接 Wi-Fi，然后登录 `mqtts.heclouds.com:1883`，使用设备名称作为 Client ID、
    产品 ID 作为 username、完整 token 作为 password。此端口使用普通 TCP，无 TLS。
-3. 订阅 `$sys/<产品ID>/<设备名称>/thing/property/post/reply`。
+3. 订阅 `$sys/<产品ID>/<设备名称>/thing/property/post/reply` 和
+   `$sys/<产品ID>/<设备名称>/thing/property/set`。
 4. 每 5 秒读取 SHT30，发布到 `$sys/<产品ID>/<设备名称>/thing/property/post`：
 
 ```json
-{"id":"1","version":"1.0","params":{"temp":{"value":25.13},"humi":{"value":56.38}}}
+{"id":"1","version":"1.0","params":{"temp":{"value":25.13},"humi":{"value":56.38},"lock":{"value":false},"relay":{"value":true}}}
 ```
 
 5. 只接受同一消息 ID 的顶层 `code`，`200` 才返回成功。
    业务应答最长等 10 秒，错误码通过 USART1 与 OLED 显示。
    MQTT 的 `SEND OK` 本身不视为平台成功。
-6. 读取失败跳过本次数据，下一次重试 SHT30 初始化；超出已有物模型范围
+6. 读取失败只上报开关状态，下一次重试 SHT30 初始化；超出已有物模型范围
    `temp=-20..100`、`humi=0..100` 的值不会上传，不会用虚构数值替代。
 7. 连接/传输失败后等待 10 秒，再从模块复位开始重连；成功后立即采样上报。
    MQTT keep alive 为 60 秒，空闲 30 秒发送 PINGREQ，10 秒未收到 PINGRESP 则重连。
@@ -158,7 +159,8 @@ while (1)
 
 ```text
 [OneNET] stage=ONLINE result=OK connack=0 wifi=0
-[OneNET] temp=25.13 humi=56.38 result=OK code=200
+[SHT30] temp=25.13 humi=56.38
+[OneNET] lock=0 relay=1 result=OK code=200
 ```
 
 故障定位：`stage=ESP` 检查固件/波特率/接线；`WIFI` 检查热点；`MQTT`
@@ -169,6 +171,39 @@ ESP-12F 不支持 5 GHz 热点，手机热点需设为 2.4 GHz；保持名称和
 [ESP8266EX 规格](https://documentation.espressif.com/0a-esp8266ex_datasheet_en.html)。
 若 MCU 在 `CIPSEND` 数据阶段意外复位，模块可能仍等待剩余数据而不响应 AT，
 应同时复位/重上电 ESP 模块后重试。
+
+## 舵机和继电器控制
+
+物模型需包含可读写的 bool 属性 `lock`（舵机）和 `relay`（继电器）。
+本地分别读取 `duoji_state`、`relay_state`，0 表示 Off，1 表示 On；
+上报转换为 JSON `false/true`，不能直接传整数 0/1，否则平台返回 2271 并拒绝整包。
+硬件动作沿用现有 `Duoji_On/Off()`、`Relay_On/Off()`，并将返回值写回状态变量。
+`lock` 的 On/Off 仅沿用现有舵机函数定义，实际锁舌方向按装配确认。
+
+平台通过 `thing/property/set` 下发，例如同时开启舵机、关闭继电器：
+
+```json
+{"id":"123","version":"1.0","params":{"lock":true,"relay":false}}
+```
+
+可只设置其中一个属性，未提供的属性保持原值；设备解析同时兼容数字 `0/1`。
+执行后发布到 `thing/property/set_reply`，保持原请求 ID：
+
+```json
+{"id":"123","code":200,"msg":"success"}
+```
+
+随后 Task 补报当前开关状态。本地状态变量变化也会触发补报；等待上报应答
+期间发生的变化留到下一次 Task 上报。周期上报仍为 5 秒。
+无效类型、非 0/1 数值、重复或未知属性返回 400，整条命令不执行；损坏 JSON
+或无有效 ID 的请求忽略。接收回调只解析入队，Task/Poll 执行并发送应答，避免
+重入 ESP 串口收发。队列最多保存 4 条，满时丢弃新命令且不执行，平台会等待超时。
+
+实板验收：分别下发 `lock=1/0`、`relay=1/0`，检查 PWM/继电器动作、
+串口 `set lock=... relay=...`、平台设置应答成功以及属性回读值一致。
+2026-09-28 已完成下述实板云端验证。
+
+协议格式参考 [OneNET 属性设置文档](https://iot.10086.cn/doc/aiot/fuse/detail/902)。
 
 ## 主机验证
 
@@ -181,10 +216,30 @@ gcc -std=c11 -Wall -Wextra -Werror -pedantic -I BSP/esp-12f -I tests/esp12f test
 
 覆盖 MQTT CONNECT/SUBSCRIBE 字节、AT 参数转义、跨 `+IPD` 分片与粘包、
 响应早于 SEND OK、数值边界、NaN/Inf、错误 ID/topic、JSON 嵌套与重复字段、
-鉴权/订阅拒绝、串口错误、断线、心跳超时、时间回绕和超长包。
+鉴权/订阅拒绝、串口错误、断线、心跳超时、时间回绕和超长包；另覆盖双属性上报、
+开关单独上报、部分/同时设置、布尔下发、非法参数不执行、连续命令，以及上报等待期间的下发。
 协议模拟和交叉编译不能替代实板 Wi-Fi、传感器和云平台验证。
 
-## 本次实板验证（2026-09-27）
+## 开关属性实板修复验证（2026-09-28）
+
+- 原固件已在板上运行，但平台应答为
+  `{"code":2271,"msg":"bool type error:identifier:lock"}`，成功上报计数为 0。
+  原因是把 bool 属性编码成 JSON 整数，导致包含温湿度的整包被拒绝。
+- 云端属性查询确认 `lock`、`relay` 均为可读写 bool；上报已改为 `true/false`。
+- 通过 DAPLink 烧录 Debug 固件并完成 46488 字节读回校验；
+  Flash 46488 B / 64 KiB，RAM 9696 B / 20 KiB。
+- COM8 连续返回 `result=OK code=200`，云端官方属性查询同时读到
+  `temp`、`humi`、`lock`、`relay` 的最新值。
+- 通过官方属性设置接口实际下发两路 `true`，设备返回 `code=200`，云端回读
+  均为 `true`；SWD 读取两状态变量均为 1，TIM1 CCR1=1000、PB12 ODR=1。
+- 随后实际下发两路 `false`，设备返回 `code=200`，云端回读均为 `false`。
+  测试结束恢复两路关闭，固件继续周期上报。
+- 验证记录：`build/Debug/lock_relay_fixed_board.log`、
+  `build/Debug/lock_relay_control_board.log`、`build/Debug/lock_relay_cloud_checks.jsonl`。
+  修复前 Flash 备份：`build/Debug/before_lock_relay_fix.bin`。
+- 主机协议回归测试通过（41 次发布、2 次心跳）。
+
+## 早期实板验证（2026-09-27）
 
 - DAPLink / CMSIS-DAP 已完成 STM32F103C8 固件下载与读回校验。
 - 最终 Debug 固件：Flash 43656 B / 64 KiB，RAM 9600 B / 20 KiB
